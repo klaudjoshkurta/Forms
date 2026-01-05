@@ -37,4 +37,8 @@ class MedicationRepository @Inject constructor(
     fun getLogsBetween(startTime: Long, endTime: Long): Flow<List<MedicationLog>> {
         return medicationLogDao.getLogsBetween(startTime, endTime)
     }
+
+    fun getAllLogs(): Flow<List<MedicationLog>> {
+        return medicationLogDao.getAllLogs()
+    }
 }

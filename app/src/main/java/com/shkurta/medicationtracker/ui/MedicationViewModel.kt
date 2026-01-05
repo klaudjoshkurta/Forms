@@ -5,9 +5,12 @@ import androidx.lifecycle.viewModelScope
 import com.shkurta.medicationtracker.data.Medication
 import com.shkurta.medicationtracker.data.MedicationRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -20,16 +23,22 @@ data class TimelineEvent(
     val logId: Int,
     val medication: Medication,
     val timestamp: Long,
-    val doseNumber: Int,    // Current dose number for this day (1st, 2nd, etc.)
-    val totalDoses: Int     // Total doses taken so far today for this med
+    val doseNumber: Int,
+    val totalDoses: Int
+)
+
+data class DaySchedule(
+    val date: Long,
+    val dayNumber: String, // "04"
+    val monthName: String, // "OCT"
+    val events: List<TimelineEvent>
 )
 
 data class HomeUiState(
     val medications: List<Medication>,
-    val todayEvents: List<TimelineEvent>,
-    val yesterdayEvents: List<TimelineEvent>,
-    val todayDateString: String,
-    val yesterdayDateString: String
+    val dailySchedules: List<DaySchedule>,
+    val selectedDate: Long,
+    val selectedMonthString: String // "October"
 )
 
 @HiltViewModel
@@ -37,67 +46,37 @@ class MedicationViewModel @Inject constructor(
     private val repository: MedicationRepository
 ) : ViewModel() {
 
-    private val startOfYesterday: Long
-        get() {
-            val calendar = Calendar.getInstance()
-            calendar.add(Calendar.DAY_OF_YEAR, -1)
-            calendar.set(Calendar.HOUR_OF_DAY, 0)
-            calendar.set(Calendar.MINUTE, 0)
-            calendar.set(Calendar.SECOND, 0)
-            calendar.set(Calendar.MILLISECOND, 0)
-            return calendar.timeInMillis
-        }
+    private val _selectedDate = MutableStateFlow(System.currentTimeMillis())
     
-    private val startOfDay: Long
-        get() {
-            val calendar = Calendar.getInstance()
-            calendar.set(Calendar.HOUR_OF_DAY, 0)
-            calendar.set(Calendar.MINUTE, 0)
-            calendar.set(Calendar.SECOND, 0)
-            calendar.set(Calendar.MILLISECOND, 0)
-            return calendar.timeInMillis
-        }
+    private val monthFormat = SimpleDateFormat("MMMM", Locale.getDefault())
+    private val dayNumberFormat = SimpleDateFormat("dd", Locale.getDefault())
+    private val monthShortFormat = SimpleDateFormat("MMM", Locale.getDefault())
 
-    private val endOfDay: Long
-        get() {
-            val calendar = Calendar.getInstance()
-            calendar.set(Calendar.HOUR_OF_DAY, 23)
-            calendar.set(Calendar.MINUTE, 59)
-            calendar.set(Calendar.SECOND, 59)
-            calendar.set(Calendar.MILLISECOND, 999)
-            return calendar.timeInMillis
-        }
-
-    // Date Formatters
-    private val headerDateFormat = SimpleDateFormat("EEEE, MMMM d", Locale.getDefault())
-
+    @OptIn(ExperimentalCoroutinesApi::class)
     val homeUiState: StateFlow<HomeUiState> = combine(
         repository.allMedications,
-        repository.getLogsBetween(startOfYesterday, endOfDay)
-    ) { medications, logs ->
+        _selectedDate,
+        _selectedDate.flatMapLatest { date ->
+            repository.getLogsBetween(getStartOfMonth(date), getEndOfMonth(date))
+        }
+    ) { medications, selectedDate, logs ->
         val medMap = medications.associateBy { it.id }
         
         // Group logs by day and medication to calculate dose numbers
-        val logsByDayAndMed = logs.groupBy { 
+        val logsByMedAndDay = logs.groupBy { 
             val cal = Calendar.getInstance()
             cal.timeInMillis = it.timestamp
-            // Create a unique key for "Day-MedID"
             "${cal.get(Calendar.DAY_OF_YEAR)}-${it.medicationId}"
         }
 
-        // Process logs into TimelineEvents with dose info
-        // We sort by timestamp ascending first to assign dose numbers correctly (1, 2, 3...)
-        val events = logs.sortedBy { it.timestamp }.map { log ->
+        // Create TimelineEvents
+        val allEvents = logs.sortedBy { it.timestamp }.mapNotNull { log ->
             val med = medMap[log.medicationId]
             if (med != null) {
                 val cal = Calendar.getInstance()
                 cal.timeInMillis = log.timestamp
-                val dayKey = "${cal.get(Calendar.DAY_OF_YEAR)}-${log.medicationId}"
-                
-                // Get all logs for this med on this day, sorted by time
-                val dayLogs = logsByDayAndMed[dayKey]?.sortedBy { it.timestamp } ?: emptyList()
-                
-                // Find index of current log (0-based) and add 1 for dose number
+                val key = "${cal.get(Calendar.DAY_OF_YEAR)}-${log.medicationId}"
+                val dayLogs = logsByMedAndDay[key]?.sortedBy { it.timestamp } ?: emptyList()
                 val doseNumber = dayLogs.indexOfFirst { it.id == log.id } + 1
                 val totalDoses = dayLogs.size
 
@@ -105,33 +84,68 @@ class MedicationViewModel @Inject constructor(
             } else {
                 null
             }
-        }.filterNotNull().sortedByDescending { it.timestamp } // Sort descending for display
+        }
 
-        val todayStart = startOfDay
-        val (today, yesterday) = events.partition { it.timestamp >= todayStart }
-        
-        // Calculate date strings dynamically
-        val todayDate = Date()
-        val yesterdayDate = Date(System.currentTimeMillis() - 24 * 60 * 60 * 1000)
+        // Group by Day
+        val groupedEvents = allEvents.groupBy { 
+            getStartOfDay(it.timestamp)
+        }.map { (dayStart, events) ->
+            val date = Date(dayStart)
+            DaySchedule(
+                date = dayStart,
+                dayNumber = dayNumberFormat.format(date),
+                monthName = monthShortFormat.format(date).uppercase(Locale.getDefault()),
+                events = events.sortedBy { it.timestamp }
+            )
+        }.sortedBy { it.date }
 
         HomeUiState(
             medications = medications,
-            todayEvents = today,
-            yesterdayEvents = yesterday,
-            todayDateString = "Today, ${headerDateFormat.format(todayDate)}",
-            yesterdayDateString = "Yesterday, ${headerDateFormat.format(yesterdayDate)}"
+            dailySchedules = groupedEvents,
+            selectedDate = selectedDate,
+            selectedMonthString = monthFormat.format(Date(selectedDate))
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
-        initialValue = HomeUiState(
-            emptyList(), 
-            emptyList(), 
-            emptyList(),
-            "Today",
-            "Yesterday"
-        )
+        initialValue = HomeUiState(emptyList(), emptyList(), System.currentTimeMillis(), "")
     )
+
+    fun selectDate(timestamp: Long) {
+        _selectedDate.value = timestamp
+    }
+
+    private fun getStartOfDay(time: Long): Long {
+        val calendar = Calendar.getInstance()
+        calendar.timeInMillis = time
+        calendar.set(Calendar.HOUR_OF_DAY, 0)
+        calendar.set(Calendar.MINUTE, 0)
+        calendar.set(Calendar.SECOND, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
+        return calendar.timeInMillis
+    }
+
+    private fun getStartOfMonth(time: Long): Long {
+        val calendar = Calendar.getInstance()
+        calendar.timeInMillis = time
+        calendar.set(Calendar.DAY_OF_MONTH, 1)
+        calendar.set(Calendar.HOUR_OF_DAY, 0)
+        calendar.set(Calendar.MINUTE, 0)
+        calendar.set(Calendar.SECOND, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
+        return calendar.timeInMillis
+    }
+
+    private fun getEndOfMonth(time: Long): Long {
+        val calendar = Calendar.getInstance()
+        calendar.timeInMillis = time
+        calendar.set(Calendar.DAY_OF_MONTH, calendar.getActualMaximum(Calendar.DAY_OF_MONTH))
+        calendar.set(Calendar.HOUR_OF_DAY, 23)
+        calendar.set(Calendar.MINUTE, 59)
+        calendar.set(Calendar.SECOND, 59)
+        calendar.set(Calendar.MILLISECOND, 999)
+        return calendar.timeInMillis
+    }
 
     fun addMedication(name: String, dosage: String, frequency: String) {
         viewModelScope.launch {

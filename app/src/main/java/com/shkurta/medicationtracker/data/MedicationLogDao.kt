@@ -23,4 +23,7 @@ interface MedicationLogDao {
 
     @Query("SELECT * FROM medication_logs WHERE timestamp BETWEEN :startTime AND :endTime")
     fun getLogsBetween(startTime: Long, endTime: Long): Flow<List<MedicationLog>>
+
+    @Query("SELECT * FROM medication_logs ORDER BY timestamp DESC")
+    fun getAllLogs(): Flow<List<MedicationLog>>
 }
