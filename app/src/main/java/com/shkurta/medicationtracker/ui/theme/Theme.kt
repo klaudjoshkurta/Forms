@@ -10,23 +10,43 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
-private val DarkColorScheme = darkColorScheme()
+private val DarkColorScheme = darkColorScheme(
+    primary = Neutral200,
+    onPrimary = Neutral900,
+    primaryContainer = Neutral800,
+    onPrimaryContainer = Neutral200,
+    secondary = Neutral400,
+    onSecondary = Neutral900,
+    background = Neutral900,
+    onBackground = Neutral100,
+    surface = Neutral800,
+    onSurface = Neutral100,
+    surfaceVariant = Neutral700,
+    onSurfaceVariant = Neutral200,
+    outline = Neutral600
+)
 
 private val LightColorScheme = lightColorScheme(
-    background = white,
-    onBackground = black,
-    surface = gray,
-    onSurface = black,
-    primary = black,
-    onPrimary = white,
-    primaryContainer = black,
-    onPrimaryContainer = white,
+    primary = Neutral800,
+    onPrimary = White,
+    primaryContainer = SageGreen40, // Very soft green for containers
+    onPrimaryContainer = Neutral900,
+    secondary = Neutral600,
+    onSecondary = White,
+    background = Neutral50, // Almost white
+    onBackground = Neutral900,
+    surface = White,
+    onSurface = Neutral900,
+    surfaceVariant = Neutral100,
+    onSurfaceVariant = Neutral700,
+    outline = Neutral300,
+    outlineVariant = Neutral200
 )
 
 @Composable
 fun MedicationTrackerTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = false, // Dynamic color is available on Android 12+
+    dynamicColor: Boolean = false, // Disabled dynamic color to enforce neutral theme
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
