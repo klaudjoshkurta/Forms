@@ -2,82 +2,375 @@ package com.shkurta.medicationtracker.ui.screen
 
 import android.app.DatePickerDialog
 import android.widget.DatePicker
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.MedicalServices
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.shkurta.medicationtracker.R
 import com.shkurta.medicationtracker.data.Medication
 import com.shkurta.medicationtracker.ui.DaySchedule
 import com.shkurta.medicationtracker.ui.MedicationViewModel
 import com.shkurta.medicationtracker.ui.TimelineEvent
 import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Date
-import java.util.Locale
+import java.util.*
 
-// Design System Colors
+// --- Colors ---
 val PrimaryPink = Color(0xFFE91E63)
 val TextDark = Color(0xFF212121)
 val TextLight = Color(0xFF757575)
 val DividerColor = Color(0xFFEEEEEE)
 val BackgroundWhite = Color(0xFFFFFFFF)
 
-@OptIn(ExperimentalMaterial3Api::class)
+// Dashboard Colors
+val MorningCyan = Color(0xFF80DEEA)
+val AfternoonPink = Color(0xFFF48FB1) // Lighter pink for card
+val EveningYellow = Color(0xFFFFF59D)
+val NightBlue = Color(0xFF9FA8DA)
+val FavCardPurple = Color(0xFF7986CB)
+
+// Profile Colors
+val StatCyan = Color(0xFF26C6DA)
+val StatGreen = Color(0xFF9CCC65)
+val StatPurple = Color(0xFF7E57C2)
+
+// --- Main Container ---
+
 @Composable
 fun HomeScreen(
     viewModel: MedicationViewModel = hiltViewModel()
+) {
+    var currentTab by remember { mutableIntStateOf(0) }
+
+    Scaffold(
+        bottomBar = {
+            NavigationBar(
+                containerColor = BackgroundWhite,
+                tonalElevation = 8.dp
+            ) {
+                NavigationBarItem(
+                    selected = currentTab == 0,
+                    onClick = { currentTab = 0 },
+                    icon = { 
+                        Icon(
+                            imageVector = Icons.Filled.Medication, // Pill icon
+                            contentDescription = "My Medicines",
+                            tint = if (currentTab == 0) PrimaryPink else Color.LightGray
+                        ) 
+                    },
+                    colors = NavigationBarItemDefaults.colors(indicatorColor = BackgroundWhite)
+                )
+                NavigationBarItem(
+                    selected = currentTab == 1,
+                    onClick = { currentTab = 1 },
+                    icon = { 
+                        Icon(
+                            imageVector = Icons.Filled.CalendarMonth, 
+                            contentDescription = "Schedule",
+                            tint = if (currentTab == 1) PrimaryPink else Color.LightGray
+                        ) 
+                    },
+                    colors = NavigationBarItemDefaults.colors(indicatorColor = BackgroundWhite)
+                )
+                NavigationBarItem(
+                    selected = currentTab == 2,
+                    onClick = { currentTab = 2 },
+                    icon = { 
+                        Icon(
+                            imageVector = Icons.Filled.Favorite, // Heart icon
+                            contentDescription = "Profile",
+                            tint = if (currentTab == 2) PrimaryPink else Color.LightGray
+                        ) 
+                    },
+                    colors = NavigationBarItemDefaults.colors(indicatorColor = BackgroundWhite)
+                )
+            }
+        }
+    ) { innerPadding ->
+        Box(modifier = Modifier.padding(innerPadding)) {
+            when (currentTab) {
+                0 -> DashboardScreen()
+                1 -> ScheduleScreen(viewModel)
+                2 -> ProfileScreen()
+            }
+        }
+    }
+}
+
+// --- Screen 1: Dashboard (My Medicines) ---
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DashboardScreen() {
+    Scaffold(
+        containerColor = BackgroundWhite,
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                         // Avatar Placeholder
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(Color.LightGray)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Amily Watson",
+                            style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = TextDark)
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = {}) {
+                        Icon(Icons.Default.Menu, contentDescription = "Menu", tint = TextDark)
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = BackgroundWhite)
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize()
+                .padding(horizontal = 24.dp)
+        ) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "MY MEDICINES",
+                style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextLight, letterSpacing = 1.sp)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // 2x2 Grid
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    MedicineCategoryCard(
+                        modifier = Modifier.weight(1f),
+                        title = "Morning",
+                        subtitle = "pills",
+                        color = MorningCyan,
+                        icon = Icons.Outlined.WbSunny
+                    )
+                    MedicineCategoryCard(
+                        modifier = Modifier.weight(1f),
+                        title = "Afternoon",
+                        subtitle = "",
+                        color = AfternoonPink, // Using a lighter pink/white with pink border style if needed, but sticking to block color for simplicity
+                        icon = Icons.Outlined.WbTwilight
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    MedicineCategoryCard(
+                        modifier = Modifier.weight(1f),
+                        title = "Evening",
+                        subtitle = "",
+                        color = EveningYellow,
+                        icon = Icons.Outlined.NightsStay
+                    )
+                    MedicineCategoryCard(
+                        modifier = Modifier.weight(1f),
+                        title = "Night",
+                        subtitle = "",
+                        color = NightBlue,
+                        icon = Icons.Outlined.Bedtime
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(32.dp))
+            Text(
+                text = "FAVOURITES",
+                style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextLight, letterSpacing = 1.sp)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Favourites Card
+            Card(
+                colors = CardDefaults.cardColors(containerColor = FavCardPurple),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth().height(80.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxSize().padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier.size(48.dp).clip(CircleShape).background(Color.Gray)
+                    ) // Placeholder for Jayeon
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        Text("Jayeon", style = TextStyle(color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp))
+                        Text("Late for 24 min", style = TextStyle(color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp))
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
+                    Icon(Icons.Filled.Medication, contentDescription = null, tint = Color.White)
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // List Item
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier.size(48.dp).clip(CircleShape).background(Color.LightGray)
+                ) // Placeholder for Jacqueline
+                Spacer(modifier = Modifier.width(16.dp))
+                Column {
+                    Text("Jacqueline", style = TextStyle(color = TextDark, fontWeight = FontWeight.Bold, fontSize = 16.sp))
+                    Text("OK", style = TextStyle(color = TextLight, fontSize = 12.sp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MedicineCategoryCard(
+    modifier: Modifier = Modifier,
+    title: String,
+    subtitle: String,
+    color: Color,
+    icon: ImageVector
+) {
+    Card(
+        modifier = modifier.height(100.dp),
+        colors = CardDefaults.cardColors(containerColor = color),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(16.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(title, style = TextStyle(color = Color.White, fontWeight = FontWeight.SemiBold))
+            Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+        }
+    }
+}
+
+// --- Screen 3: Profile ---
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ProfileScreen() {
+    Scaffold(
+        containerColor = BackgroundWhite,
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text("") },
+                navigationIcon = {
+                     IconButton(onClick = {}) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = TextDark)
+                    }
+                },
+                actions = {
+                    IconButton(onClick = {}) {
+                        Icon(Icons.Default.Menu, contentDescription = "Menu", tint = TextDark)
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = BackgroundWhite)
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize()
+                .padding(horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Profile Header
+             Box(
+                modifier = Modifier
+                    .size(80.dp)
+                    .clip(CircleShape)
+                    .background(Color.LightGray)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("AMILY WATSON", style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextDark))
+            Text("ID: 24097", style = TextStyle(fontSize = 12.sp, color = TextLight))
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("EDIT PROFILE", style = TextStyle(fontSize = 12.sp, color = TextLight, fontWeight = FontWeight.Medium))
+            
+            Spacer(modifier = Modifier.height(32.dp))
+            
+            // Tabs
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Nutrients", style = TextStyle(color = TextLight))
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Vitamins", style = TextStyle(color = PrimaryPink, fontWeight = FontWeight.Bold))
+                    Box(modifier = Modifier.width(40.dp).height(2.dp).background(PrimaryPink))
+                }
+                Text("Minerals", style = TextStyle(color = TextLight))
+            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            // Stats List
+            StatItem(name = "Vitamin B", desc = "Raw cantaloupe is good source...", percentage = 54, color = StatCyan)
+            Spacer(modifier = Modifier.height(16.dp))
+            StatItem(name = "Vitamin C", desc = "Raw pineapple has 10mg...", percentage = 81, color = StatGreen)
+            Spacer(modifier = Modifier.height(16.dp))
+            StatItem(name = "Vitamin D", desc = "You can get vitamin D from...", percentage = 60, color = StatPurple)
+        }
+    }
+}
+
+@Composable
+fun StatItem(name: String, desc: String, percentage: Int, color: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(60.dp)) {
+            CircularProgressIndicator(
+                progress = { percentage / 100f },
+                modifier = Modifier.fillMaxSize(),
+                color = color,
+                trackColor = Color(0xFFEEEEEE),
+            )
+            Text("$percentage%", style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Bold, color = color))
+        }
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(name, style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextDark))
+            Text(desc, style = TextStyle(fontSize = 12.sp, color = TextLight), maxLines = 2)
+        }
+    }
+}
+
+// --- Screen 5: Schedule (Previously HomeScreen) ---
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ScheduleScreen(
+    viewModel: MedicationViewModel
 ) {
     val homeUiState by viewModel.homeUiState.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
@@ -125,7 +418,7 @@ fun HomeScreen(
                     },
                     actions = {
                         IconButton(onClick = { /* Settings */ }) {
-                            Icon(Icons.Default.Edit, contentDescription = "Edit Profile", tint = TextDark)
+                            Icon(Icons.Default.Menu, contentDescription = "Menu", tint = TextDark)
                         }
                     },
                     colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
@@ -154,8 +447,10 @@ fun HomeScreen(
                             style = TextStyle(
                                 fontSize = 16.sp, 
                                 fontWeight = FontWeight.Bold, 
-                                color = PrimaryPink
-                            )
+                                color = PrimaryPink,
+                                textAlign = TextAlign.Center
+                            ),
+                            modifier = Modifier.clickable { datePickerDialog.show() }
                         )
                         Box(
                             modifier = Modifier
@@ -174,31 +469,6 @@ fun HomeScreen(
                 }
             }
         },
-        bottomBar = {
-            NavigationBar(
-                containerColor = BackgroundWhite,
-                tonalElevation = 8.dp
-            ) {
-                NavigationBarItem(
-                    selected = false,
-                    onClick = {},
-                    icon = { Icon(Icons.Default.MedicalServices, contentDescription = "Meds", tint = Color.LightGray) }
-                )
-                NavigationBarItem(
-                    selected = true,
-                    onClick = {},
-                    icon = { Icon(Icons.Default.CalendarMonth, contentDescription = "Schedule", tint = PrimaryPink) },
-                    colors = NavigationBarItemDefaults.colors(
-                        indicatorColor = BackgroundWhite
-                    )
-                )
-                NavigationBarItem(
-                    selected = false,
-                    onClick = {},
-                    icon = { Icon(Icons.Default.Add, contentDescription = "Add", tint = Color.LightGray) }
-                )
-            }
-        },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showAddDialog = true },
@@ -213,7 +483,7 @@ fun HomeScreen(
             modifier = Modifier
                 .padding(innerPadding)
                 .fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(0.dp) // Removed spacing, handled by items
+            verticalArrangement = Arrangement.spacedBy(0.dp)
         ) {
             items(homeUiState.dailySchedules) { daySchedule ->
                 DayScheduleItem(daySchedule)
@@ -262,7 +532,7 @@ fun DayScheduleItem(daySchedule: DaySchedule) {
                 style = TextStyle(
                     fontSize = 32.sp,
                     fontWeight = FontWeight.Thin,
-                    color = TextDark // Or PrimaryPink if active day
+                    color = PrimaryPink
                 )
             )
             Text(
@@ -270,7 +540,7 @@ fun DayScheduleItem(daySchedule: DaySchedule) {
                 style = TextStyle(
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
-                    color = TextDark // Or PrimaryPink
+                    color = PrimaryPink
                 )
             )
         }
@@ -281,8 +551,7 @@ fun DayScheduleItem(daySchedule: DaySchedule) {
         Box(
             modifier = Modifier
                 .width(1.dp)
-                .fillMaxHeight() // This needs intrinsic height to work perfectly, simpler to fix height or rely on content
-                .height(100.dp) // Approximate for now or calculate based on list size
+                .height(100.dp) 
                 .background(DividerColor)
         )
 
