@@ -25,10 +25,14 @@ fun FormsApp() {
         exitTransition = { ExitTransition.None }
     ) {
         composable(Screen.Home.route) {
-            HomeScreen()
+            HomeScreen(
+                navController = navController
+            )
         }
         composable(Screen.Habits.route) {
-            HabitsFormScreen()
+            HabitsFormScreen(
+                navController = navController
+            )
         }
     }
 }
