@@ -12,6 +12,7 @@ import com.shkurta.forms.ui.screen.HomeScreen
 sealed class Screen(val route: String) {
     object Home : Screen("home")
     object Habits : Screen("habits")
+object Settings: Screen("settings")
 }
 
 @Composable
