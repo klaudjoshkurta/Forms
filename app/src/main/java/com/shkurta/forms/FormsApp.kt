@@ -13,6 +13,7 @@ sealed class Screen(val route: String) {
     object Home : Screen("home")
     object Habits : Screen("habits")
 object Settings: Screen("settings")
+object About : Screen("about")
 }
 
 @Composable
